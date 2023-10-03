@@ -55,7 +55,7 @@ class Face:
 
     def __init__(self):
         # determine the path and set the default path place
-        os.chdir(r'/home/{}/ros_ws/src/baxter_face/scripts'.format(getpass.getuser()))
+        os.chdir(r'/home/{}/baxter_ws/src/baxter_face_software/baxter_face/scripts'.format(getpass.getuser()))
         ''' Parts of the face of baxter are defined.'''
         self.backgroundImage = Image.open("data/baxter_background.png") # Background behind the eyes
         # Face partions objects
@@ -116,7 +116,7 @@ class Face:
             # control for goal coordinate is not in the angle of view of Baxter
             if abs(destinationX - headPositionCoordinate) > self.radianToCoordinate(self.angleOfView):
                 # wobbling -> look at the given coordinates physicly
-                print "Wobbling to: ", destinationX
+                print("Wobbling to: ", destinationX)
                 wobbler.wobble(self.coordinateToRadian(destinationX))
                 self.eye.lookExactCoordinate(0, destinationY)
                 image = self.buildFace()
@@ -135,7 +135,7 @@ class Face:
             # control for goal coordinate is not in the angle of view of Baxter
             if abs(destinationX - headPositionCoordinate) > self.radianToCoordinate(self.angleOfView):
                 # wobbling -> look at the given coordinates physicly
-                print "Wobbling to: ", destinationX
+                print("Wobbling to: ", destinationX)
                 wobbler.wobble(self.coordinateToRadian(destinationX))
                 self.eye.lookExactCoordinate(0, destinationY)  
             else:

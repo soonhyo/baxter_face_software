@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 @Author: Bilgehan NAL
@@ -137,7 +137,7 @@ def callback_Command(data):
     global isItLeftArm
     global dynamicControl
     msg = data.data.lower() # All lethers were made in small to compare.
-    print "recieved msg is : {}".format(msg)
+    print("recieved msg is : {}".format(msg))
     msgs = msg.split("_") #this array keeps all variables
    
     # Messages and actions
@@ -146,56 +146,56 @@ def callback_Command(data):
         
         if msgs[0] == "default" :
             face.emotion_default(cv2, publish_image)
-            print "Default Emotion is applicated"
+            print("Default Emotion is applicated")
 
         if msgs[0] == "happy" :
             face.emotion_happy(cv2, publish_image)
-            print "Emotion happy is applicated"
+            print("Emotion happy is applicated")
             
         elif msgs[0] == "angry" :
             face.emotion_angry(cv2, publish_image)
-            print "Emotion angry is applicated"
+            print("Emotion angry is applicated")
 
         elif msgs[0] == "confused" :
             face.emotion_confused(cv2, publish_image)
-            print "Emotion confused is applicated"
+            print("Emotion confused is applicated")
 
         elif msgs[0] == "sad" :
             face.emotion_sad(cv2, publish_image)
-            print "Emotion sad is applicated"
+            print("Emotion sad is applicated")
 
         elif msgs[0] == "panic" :
             face.emotion_panic(cv2, publish_image)
-            print "Emotion panic is applicated"
+            print("Emotion panic is applicated")
 
         elif msgs[0] == "bored" :
             face.emotion_bored(cv2, publish_image)
-            print "Emotion bored is applicated"
+            print("Emotion bored is applicated")
 
         elif msgs[0] == "crafty" :
             face.emotion_crafty(cv2, publish_image)
-            print "Emotion crafty is applicated"
+            print("Emotion crafty is applicated")
 
         elif msgs[0] == "exit" :
-            print "Program is closing..."
+            print("Program is closing...")
             face.sleep(cv2, publish_image)
             rospy.sleep(1)
-            print "Program is closed"
+            print("Program is closed")
             isSystemRun = False
             sys.exit()
 
         elif msgs[0] == "enable" :
             wobbler.enable()
             wobbler.wobble(0.0)
-            print "Wobbler is enabled and wobbled to 0.0"
+            print("Wobbler is enabled and wobbled to 0.0")
 
         elif msgs[0] == "disable" :
             wobbler.disable()
-            print "Wobbler is disabled"
+            print("Wobbler is disabled")
 
         elif msgs[0] == "sleep" :
             face.sleep(cv2, publish_image)
-            print "Sst! Baxter is sleeping right now"
+            print("Sst! Baxter is sleeping right now")
             
         defaultMsg = msg
     
@@ -209,11 +209,11 @@ def callback_Command(data):
         elif msgs[0] == "wobble" :
             angle = float(msgs[1])
             wobbler.wobble(angle)
-            print "Wobbling is applicated"
+            print("Wobbling is applicated")
 
         elif msgs[0] == "wake" and msgs[1] == "up" :
             face.wakeUp(cv2, publish_image)
-            print "Baxter woke up"
+            print("Baxter woke up")
 
         defaultMsg = msg
 
@@ -230,12 +230,12 @@ def callback_Command(data):
             dynamicControl = False
             wobbler.enable()
             wobbler.wobble(0.0)
-            print "Human following mod on"
+            print("Human following mod on")
 
         elif msgs[0] == "human" and msgs[1] == "follow" and msgs[2] == "off" :
             humanFollowControl = False
             dynamicControl = False
-            print "Human following mod off"
+            print("Human following mod off")
             face.lookWithMotion(cv2, 0, 0, 0.5, publish_image)
             dynamicControl = False
             wobbler.enable()
@@ -243,7 +243,7 @@ def callback_Command(data):
 
         elif msgs[0] == "arm" and msgs[1] == "follow" and msgs[2] == "off" :
             armFollowControl = False
-            print "Arm following mod off"
+            print("Arm following mod off")
             face.lookWithMotion(cv2, 0, 0, 0.5, publish_image)
             dynamicControl = False
             wobbler.enable()
@@ -266,7 +266,7 @@ def callback_Command(data):
             humanFollowControl = True
             armFollowControl = False
             dynamicControl = True
-            print "Human following mod on"
+            print("Human following mod on")
 
         elif msgs[0] == "left" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on" :
             humanFollowControl = False
@@ -275,7 +275,7 @@ def callback_Command(data):
             dynamicControl = False
             wobbler.enable()
             wobbler.wobble(0.0)
-            print "Left arm following mod on"
+            print("Left arm following mod on")
 
         elif msgs[0] == "right" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on" :
             humanFollowControl = False
@@ -284,7 +284,7 @@ def callback_Command(data):
             dynamicControl = False
             wobbler.enable()
             wobbler.wobble(0.0)
-            print "Right arm following mod on"
+            print("Right arm following mod on")
         defaultMsg = msg
     
     elif len(msgs) == 5 and msg != defaultMsg :
@@ -293,14 +293,14 @@ def callback_Command(data):
             armFollowControl = True
             isItLeftArm = False
             dynamicControl = True
-            print "Dynamic right arm following mod on"
+            print("Dynamic right arm following mod on")
 
         if msgs[0] == "dynamic" and msgs[1] == "left" and msgs[2] == "arm" and msgs[3] == "follow" and msgs[4] == "on" :
             humanFollowControl = False
             armFollowControl = True
             isItLeftArm = True
             dynamicControl = True
-            print "Dynamic left arm following mod on"
+            print("Dynamic left arm following mod on")
         defaultMsg = msg
 
 
@@ -342,7 +342,7 @@ def callback_human_follow(msg):
         value = int(mean(handleList) * 26.67)
         oldCoor = coor
         coor = value #Coor is the coordinate of the object according to robot's eye
-        #print "Coor: {}, SumOfSensors: {}".format(coor, sum(arrayOfSonarID))
+        #print("Coor: {}, SumOfSensors: {}".format(coor, sum(arrayOfSonarID))
 
 def humanFollowNoiseElimination(sonarIDs, sonarDistances) :
     arrayOfSonarID = []
@@ -421,7 +421,7 @@ def callback_right_arm_follow(msg):
 
 def main():
     global wobbler
-    print "entered main part..."
+    print("entered main part...")
     wobbler = head_wobbler.Wobbler()
     face.testAllImages(cv2, publish_image)
     face.sleep(cv2, publish_image)
@@ -439,7 +439,7 @@ def main_loop() :
     #These time keepers for the eyelid
     referenceTime = timeit.default_timer()
     currentTime = timeit.default_timer()
-    print "entered main loop part..."
+    print("entered main loop part...")
 
     while not rospy.is_shutdown() :
         
@@ -448,7 +448,7 @@ def main_loop() :
         if currentTime - referenceTime > 5:
             face.wink(cv2, publish_image)
             referenceTime = timeit.default_timer()
-            print "wink motion is applicated"
+            print("wink motion is applicated")
 
         if humanFollowControl == True :
             if oldCoor != face.eye.getPositionX():
@@ -495,7 +495,7 @@ if __name__ == '__main__' :
         sys.exit()
 
     except :
-        print "Unable to start thread"
+        print("Unable to start thread")
     while 1 :
         if isSystemRun == False :
             break

@@ -22,7 +22,7 @@ class Wobbler(object):
         self._head = baxter_interface.Head()
         self.tolerance = baxter_interface.HEAD_PAN_ANGLE_TOLERANCE
         self._rs = baxter_interface.RobotEnable(CHECK_VERSION)
-        print "Wobbler is initilized"
+        print("Wobbler is initilized")
 
     """ enable robot """
 
@@ -54,7 +54,7 @@ class Wobbler(object):
 
     def wobbleSlow(self, angle) :
         # Sets the head place to a gaven position with a given speed
-        print baxter_interface.HEAD_PAN_ANGLE_TOLERANCE
+        print(baxter_interface.HEAD_PAN_ANGLE_TOLERANCE)
         if angle > 1.5 :
             angle = 1.5
         elif angle < -1.5 :
@@ -88,7 +88,7 @@ class Wobbler(object):
         elif angle < -1.5 :
             angle = -1.5
         if self._rs.state().enabled:
-            print "Wobbling is apllicating"
+            print("Wobbling is apllicating")
             self._head.set_pan(angle)
 
     def getPosition(self):
