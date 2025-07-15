@@ -49,15 +49,15 @@ import os
 import random
 import getpass
 import time
-
+import rospkg
 
 class Face:
 
     def __init__(self):
         # determine the path and set the default path place
-        os.chdir(r'/home/{}/baxter_ws/src/baxter_face_software/baxter_face/scripts'.format(getpass.getuser()))
+        default_path = rospkg.RosPack().get_path('baxter_face')
         ''' Parts of the face of baxter are defined.'''
-        self.backgroundImage = Image.open("data/baxter_background.png") # Background behind the eyes
+        self.backgroundImage = Image.open(default_path+"/scripts/data/baxter_background.png") # Background behind the eyes
         # Face partions objects
         self.skin = Skin.Skin(5) # range: [0, 5]
         self.mouth = Mouth.Mouth(2) # range: [0, 6]

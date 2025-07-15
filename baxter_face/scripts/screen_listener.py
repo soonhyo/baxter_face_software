@@ -89,6 +89,13 @@ def isInAvailablePercentage(minimum, current, percentage):
 
 # publish image is a function which displays the image given with parameter. Image Type: Numpy array
 def publish_image(img):
+    max_width = rospy.get_param('~max_width', 1920)
+    max_height = rospy.get_param('~max_height', 1200)
+
+    h, w = img.shape[:2]
+    scale = min(1.0 * max_height / h, 1.0 * max_width / w)
+    img = cv2.resize(img, None, None, fx=scale, fy=scale)
+
     msg = cv_bridge.CvBridge().cv2_to_imgmsg(img, encoding="rgba8")
     pub = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=1)
     pub.publish(msg)
