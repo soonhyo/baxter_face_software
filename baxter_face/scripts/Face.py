@@ -55,7 +55,7 @@ class Face:
 
     def __init__(self):
         # determine the path and set the default path place
-        os.chdir(r'/home/{}/ros_ws/src/baxter_face/scripts'.format(getpass.getuser()))
+        os.chdir(r'/home/{}/ros/melodic/src/baxter_face_software/baxter_face/scripts'.format(getpass.getuser()))
         ''' Parts of the face of baxter are defined.'''
         self.backgroundImage = Image.open("data/baxter_background.png") # Background behind the eyes
         # Face partions objects
