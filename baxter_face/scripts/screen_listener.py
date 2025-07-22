@@ -88,7 +88,7 @@ pKOld = 1
 sizeOfHandleList = 35
 handleList = [0]*35
 
-# Optimized publishing variables
+# publishing variables
 image_queue = Queue.Queue(maxsize=2)  # Image queue (max 2 images)
 last_published_image = None
 image_changed = False
@@ -106,21 +106,8 @@ def isInAvailablePercentage(minimum, current, percentage):
     else:
         return False
 
-# Original publish_image function (kept for compatibility)
 def publish_image(img):
-    max_width = rospy.get_param('~max_width', 1920)
-    max_height = rospy.get_param('~max_height', 1200)
-
-    h, w = img.shape[:2]
-    scale = min(1.0 * max_height / h, 1.0 * max_width / w)
-    img = cv2.resize(img, None, None, fx=scale, fy=scale)
-
-    msg = cv_bridge.CvBridge().cv2_to_imgmsg(img, encoding="rgba8")
-    pub_temp = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=1)
-    pub_temp.publish(msg)
-
-def publish_image_optimized(img):
-    """Optimized image publishing function"""
+    """image publishing function"""
     global last_published_image, image_changed, image_queue
 
     # Check if image has changed (optional)
@@ -504,14 +491,14 @@ def callback_right_arm_follow(msg):
 
 def main():
     global wobbler
-    print("entered optimized main part...")
+    print("entered main part...")
 
     # Initialize publisher
     init_publisher()
 
     wobbler = head_wobbler.Wobbler()
-    face.testAllImages(cv2, publish_image_optimized)
-    face.sleep(cv2, publish_image_optimized)
+    face.testAllImages(cv2, publish_image)
+    face.sleep(cv2, publish_image)
 
     # Start image publishing thread
     image_thread = threading.Thread(target=image_publisher_thread, name='image_publisher')
@@ -537,14 +524,14 @@ def main_loop():
     last_human_follow_update = 0
     last_arm_follow_update = 0
 
-    print("entered optimized main loop part...")
+    print("entered main loop part...")
 
     while not rospy.is_shutdown() and isSystemRun:
         current_time = timeit.default_timer()
 
         # Wink every 5 seconds (maintain existing logic)
         if current_time - referenceTime > 5:
-            face.wink(cv2, publish_image_optimized)
+            face.wink(cv2, publish_image)
             referenceTime = current_time
             print("wink motion is applicated")
 
@@ -553,10 +540,10 @@ def main_loop():
             if oldCoor != face.eye.getPositionX():
                 if dynamicControl == False:
                     face.eye.lookExactCoordinate(coor, 0)
-                    face.show(publish_image_optimized)
+                    face.show(publish_image)
                 else:
-                    face.lookExactCoordinateDynamic(cv2, coor, 0, publish_image_optimized, wobbler)
-                    face.show(publish_image_optimized)
+                    face.lookExactCoordinateDynamic(cv2, coor, 0, publish_image, wobbler)
+                    face.show(publish_image)
             last_human_follow_update = current_time
 
         # Arm follow processing (more frequent updates)
@@ -568,16 +555,16 @@ def main_loop():
                     face.eye.lookExactCoordinate(int(xAxisRight), int(yAxisRight))
             else:
                 if isItLeftArm:
-                    face.lookExactCoordinateDynamic(int(xAxisLeft), int(yAxisLeft), publish_image_optimized, wobbler)
+                    face.lookExactCoordinateDynamic(int(xAxisLeft), int(yAxisLeft), publish_image, wobbler)
                 else:
-                    face.lookExactCoordinateDynamic(int(xAxisRight), int(yAxisRight), publish_image_optimized, wobbler)
+                    face.lookExactCoordinateDynamic(int(xAxisRight), int(yAxisRight), publish_image, wobbler)
 
-            face.show(publish_image_optimized)
+            face.show(publish_image)
             last_arm_follow_update = current_time
 
         # Publish default image when no control is active
         elif not humanFollowControl and not armFollowControl:
-            face.show(publish_image_optimized)
+            face.show(publish_image)
 
         if isSystemRun == False:
             sys.exit()
@@ -587,7 +574,6 @@ def main_loop():
 if __name__ == '__main__':
     rospy.init_node('rsdk_xdisplay_image', anonymous=True)
 
-    # Use optimized version
     threadMain = threading.Thread(name='listener', target=main)
     threadMainLoop = threading.Thread(name='main_loop', target=main_loop)
 
