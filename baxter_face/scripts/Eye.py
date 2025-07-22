@@ -7,12 +7,14 @@ This file has a class which defines the shape and movment of the baxter's eyes.
 
 from PIL import Image
 import math
+import rospkg
 
 class Eye:
     
     def __init__(self):
+        default_path = rospkg.RosPack().get_path('baxter_face')
 
-        self.eyes = Image.open("data/baxter_eye.png")   # eye image
+        self.eyes = Image.open(default_path+"/scripts/data/baxter_eye.png")   # eye image
         self.positionX = 0  # keeps the x position as a coordinate
         self.positionY = 0  # keeps the y position as a coordinate
 

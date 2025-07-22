@@ -50,6 +50,9 @@ import random
 import getpass
 import time
 import rospkg
+import threading
+
+lock = threading.Lock()
 
 class Face:
 
@@ -71,19 +74,25 @@ class Face:
 
     def buildFace(self):
         # Merging the layers
-        faceImage = self.backgroundImage.copy()
-        faceImage.paste(self.eye.getEyes(), (int(self.eye.getPositionX()), int(self.eye.getPositionY())), self.eye.getEyes())
-        faceImage.paste(self.eyelid.getEyelid(), (0, self.eyelid.getPosition()), self.eyelid.getEyelid())
-        faceImage.paste(self.skin.getSkin(), (0, 0), self.skin.getSkin())
-        faceImage.paste(self.mouth.getMouth(), (0, 0), self.mouth.getMouth())
-        faceImage.paste(self.eyebrow.getEyebrow(), (0, 0), self.eyebrow.getEyebrow())
+        with lock:
+            faceImage = self.backgroundImage.copy()
+        with lock:
+            faceImage.paste(self.eye.getEyes(), (int(self.eye.getPositionX()), int(self.eye.getPositionY())), self.eye.getEyes())
+        with lock:
+            faceImage.paste(self.eyelid.getEyelid(), (0, self.eyelid.getPosition()), self.eyelid.getEyelid())
+        with lock:
+            faceImage.paste(self.skin.getSkin(), (0, 0), self.skin.getSkin())
+        with lock:
+            faceImage.paste(self.mouth.getMouth(), (0, 0), self.mouth.getMouth())
+        with lock:
+            faceImage.paste(self.eyebrow.getEyebrow(), (0, 0), self.eyebrow.getEyebrow())
+
         image = array(faceImage)
         return image
 
     def show(self, publish):
         image = self.buildFace()
         publish(image)
-
     # Reposition of the eyes of the baxter
     # This function provide with the eyes' simulation movement
     def lookWithMotion(self, cv2, destinationX, destinationY, time, publish):

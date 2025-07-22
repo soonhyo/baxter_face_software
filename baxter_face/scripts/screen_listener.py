@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 '''
 @Author: Bilgehan NAL
@@ -28,14 +28,12 @@ Actions:
     -> "sleep"
 Wobbling:
     -> "enable"
-    -> "disable" 
+    -> "disable"
     -> "wobble_<angle>" angle should be between[-1.5, 1.5]
 Other:
     -> "exit"
     -> "wake_up"
     -> "sleep"
-
-
 '''
 
 import os
@@ -52,12 +50,22 @@ import head_wobbler
 from baxter_core_msgs.msg import EndpointState
 import math
 
-""" Variable Decleration """
+# Python 2/3 compatibility
+try:
+    import queue as Queue  # Python 3
+except ImportError:
+    import Queue  # Python 2
+
+try:
+    from functools import reduce  # Python 3
+except ImportError:
+    pass  # Python 2 has reduce as builtin
+
+""" Variable Declaration """
 
 wobbler = None
-
 face = Face.Face()
-humanFollowControl = False # if this variable will be true, baxter follows the humans 
+humanFollowControl = False # if this variable will be true, baxter follows the humans
 dynamicControl = False
 armFollowControl = False # if this variable will be true, baxter follows its determined arm
 isItLeftArm = True
@@ -80,6 +88,17 @@ pKOld = 1
 sizeOfHandleList = 35
 handleList = [0]*35
 
+# Optimized publishing variables
+image_queue = Queue.Queue(maxsize=2)  # Image queue (max 2 images)
+last_published_image = None
+image_changed = False
+pub = None  # Publisher declared globally
+
+def init_publisher():
+    """Initialize publisher only once"""
+    global pub
+    pub = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=10)
+
 def isInAvailablePercentage(minimum, current, percentage):
     rangeOfPercentage = percentage / 100.0
     if abs(current-minimum) < (minimum * rangeOfPercentage):
@@ -87,7 +106,7 @@ def isInAvailablePercentage(minimum, current, percentage):
     else:
         return False
 
-# publish image is a function which displays the image given with parameter. Image Type: Numpy array
+# Original publish_image function (kept for compatibility)
 def publish_image(img):
     max_width = rospy.get_param('~max_width', 1920)
     max_height = rospy.get_param('~max_height', 1200)
@@ -97,11 +116,72 @@ def publish_image(img):
     img = cv2.resize(img, None, None, fx=scale, fy=scale)
 
     msg = cv_bridge.CvBridge().cv2_to_imgmsg(img, encoding="rgba8")
-    pub = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=1)
-    pub.publish(msg)
+    pub_temp = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=1)
+    pub_temp.publish(msg)
+
+def publish_image_optimized(img):
+    """Optimized image publishing function"""
+    global last_published_image, image_changed, image_queue
+
+    # Check if image has changed (optional)
+    if last_published_image is not None:
+        try:
+            # For numpy arrays comparison
+            import numpy as np
+            if np.array_equal(img, last_published_image):
+                return  # Skip if same image
+        except:
+            # Fallback comparison for cases where numpy is not available
+            pass
+
+    # Add image to queue (non-blocking)
+    try:
+        if not image_queue.full():
+            image_queue.put_nowait(img.copy())
+            image_changed = True
+    except Queue.Full:
+        pass  # Ignore if queue is full
+
+def image_publisher_thread():
+    """Separate thread for image processing and publishing"""
+    global image_queue, pub, last_published_image
+
+    max_width = rospy.get_param('~max_width', 1920)
+    max_height = rospy.get_param('~max_height', 1200)
+    bridge = cv_bridge.CvBridge()
+
+    rate = rospy.Rate(30)  # Try to publish at 30Hz
+
+    while not rospy.is_shutdown():
+        try:
+            # Get image from queue (with timeout)
+            img = image_queue.get(timeout=0.02)
+
+            # Process image
+            h, w = img.shape[:2]
+            scale = min(1.0 * max_height / h, 1.0 * max_width / w)
+            img = cv2.resize(img, None, None, fx=scale, fy=scale)
+
+            # Create message and publish
+            msg = bridge.cv2_to_imgmsg(img, encoding="bgra8")
+            pub.publish(msg)
+
+            last_published_image = img
+            image_queue.task_done()
+
+        except Queue.Empty:
+            # If queue is empty, republish last image
+            if last_published_image is not None:
+                msg = bridge.cv2_to_imgmsg(last_published_image, encoding="bgra8")
+                pub.publish(msg)
+        except Exception as e:
+            # Handle any other exceptions
+            rospy.logwarn("Error in image publisher thread: {}".format(str(e)))
+
+        rate.sleep()
 
 # Statistical Functions
-def mode(numbers) :
+def mode(numbers):
     largestCount = 0
     modes = []
     for x in numbers:
@@ -120,17 +200,17 @@ def stddev(lst):
     mean = float(sum(lst)) / len(lst)
     return (float(reduce(lambda x, y: x + y, map(lambda x: (x - mean) ** 2, lst))) / len(lst))**0.5
 
-def mean(listX) :
+def mean(listX):
     return sum(listX) / len(listX)
 
-def eliminateOutliers(listOfData, limit) :
+def eliminateOutliers(listOfData, limit):
     stdDeviation = stddev(listOfData)
     meanOfList = mean(listOfData)
 
-    for element in listOfData :
-        if stdDeviation != 0 :
+    for element in listOfData:
+        if stdDeviation != 0:
             zScore = abs(element - meanOfList) / stdDeviation
-            if zScore > limit :
+            if zScore > limit:
                 del element
     return listOfData
 
@@ -143,47 +223,46 @@ def callback_Command(data):
     global armFollowControl
     global isItLeftArm
     global dynamicControl
-    msg = data.data.lower() # All lethers were made in small to compare.
-    print("recieved msg is : {}".format(msg))
+    msg = data.data.lower() # All letters were made in small to compare.
+    print("received msg is : {}".format(msg))
     msgs = msg.split("_") #this array keeps all variables
-   
-    # Messages and actions
 
+    # Messages and actions
     if len(msgs) == 1 and msg != defaultMsg:
-        
-        if msgs[0] == "default" :
+
+        if msgs[0] == "default":
             face.emotion_default(cv2, publish_image)
             print("Default Emotion is applicated")
 
-        if msgs[0] == "happy" :
+        if msgs[0] == "happy":
             face.emotion_happy(cv2, publish_image)
             print("Emotion happy is applicated")
-            
-        elif msgs[0] == "angry" :
+
+        elif msgs[0] == "angry":
             face.emotion_angry(cv2, publish_image)
             print("Emotion angry is applicated")
 
-        elif msgs[0] == "confused" :
+        elif msgs[0] == "confused":
             face.emotion_confused(cv2, publish_image)
             print("Emotion confused is applicated")
 
-        elif msgs[0] == "sad" :
+        elif msgs[0] == "sad":
             face.emotion_sad(cv2, publish_image)
             print("Emotion sad is applicated")
 
-        elif msgs[0] == "panic" :
+        elif msgs[0] == "panic":
             face.emotion_panic(cv2, publish_image)
             print("Emotion panic is applicated")
 
-        elif msgs[0] == "bored" :
+        elif msgs[0] == "bored":
             face.emotion_bored(cv2, publish_image)
             print("Emotion bored is applicated")
 
-        elif msgs[0] == "crafty" :
+        elif msgs[0] == "crafty":
             face.emotion_crafty(cv2, publish_image)
             print("Emotion crafty is applicated")
 
-        elif msgs[0] == "exit" :
+        elif msgs[0] == "exit":
             print("Program is closing...")
             face.sleep(cv2, publish_image)
             rospy.sleep(1)
@@ -191,46 +270,46 @@ def callback_Command(data):
             isSystemRun = False
             sys.exit()
 
-        elif msgs[0] == "enable" :
+        elif msgs[0] == "enable":
             wobbler.enable()
             wobbler.wobble(0.0)
             print("Wobbler is enabled and wobbled to 0.0")
 
-        elif msgs[0] == "disable" :
+        elif msgs[0] == "disable":
             wobbler.disable()
             print("Wobbler is disabled")
 
-        elif msgs[0] == "sleep" :
+        elif msgs[0] == "sleep":
             face.sleep(cv2, publish_image)
             print("Sst! Baxter is sleeping right now")
-            
+
         defaultMsg = msg
-    
-    elif len(msgs) == 2 and msg != defaultMsg :
-        
-        if msgs[0] == "skin" :
-            numberOfSkin = int(msgs[1]) 
+
+    elif len(msgs) == 2 and msg != defaultMsg:
+
+        if msgs[0] == "skin":
+            numberOfSkin = int(msgs[1])
             face.skin.setSkin(numberOfSkin)
             face.show(publish_image)
-        
-        elif msgs[0] == "wobble" :
+
+        elif msgs[0] == "wobble":
             angle = float(msgs[1])
             wobbler.wobble(angle)
             print("Wobbling is applicated")
 
-        elif msgs[0] == "wake" and msgs[1] == "up" :
+        elif msgs[0] == "wake" and msgs[1] == "up":
             face.wakeUp(cv2, publish_image)
             print("Baxter woke up")
 
         defaultMsg = msg
 
-    elif len(msgs) == 3 and msg != defaultMsg :
-        if msgs[0] == "look" :
+    elif len(msgs) == 3 and msg != defaultMsg:
+        if msgs[0] == "look":
             x = int(msgs[1])
             y = int(msgs[2])
             face.lookWithMotion(cv2, x, y, 0.5, publish_image)
 
-        elif msgs[0] == "human" and msgs[1] == "follow" and msgs[2] == "on" :
+        elif msgs[0] == "human" and msgs[1] == "follow" and msgs[2] == "on":
             face.lookWithMotion(cv2, 0, 0, 0.5, publish_image)
             humanFollowControl = True
             armFollowControl = False
@@ -239,7 +318,7 @@ def callback_Command(data):
             wobbler.wobble(0.0)
             print("Human following mod on")
 
-        elif msgs[0] == "human" and msgs[1] == "follow" and msgs[2] == "off" :
+        elif msgs[0] == "human" and msgs[1] == "follow" and msgs[2] == "off":
             humanFollowControl = False
             dynamicControl = False
             print("Human following mod off")
@@ -248,7 +327,7 @@ def callback_Command(data):
             wobbler.enable()
             wobbler.wobble(0.0)
 
-        elif msgs[0] == "arm" and msgs[1] == "follow" and msgs[2] == "off" :
+        elif msgs[0] == "arm" and msgs[1] == "follow" and msgs[2] == "off":
             armFollowControl = False
             print("Arm following mod off")
             face.lookWithMotion(cv2, 0, 0, 0.5, publish_image)
@@ -256,26 +335,26 @@ def callback_Command(data):
             wobbler.enable()
             wobbler.wobble(0.0)
         defaultMsg = msg
-    
-    elif len(msgs) == 4 and msg != defaultMsg :
-        if msgs[0] == "look" :
+
+    elif len(msgs) == 4 and msg != defaultMsg:
+        if msgs[0] == "look":
             x = int(msgs[1])
             y = int(msgs[2])
             second = float(msgs[3])
             face.lookWithMotion(cv2, x, y, second, publish_image)
 
-        elif msgs[0] == "dynamic" and msgs[1] == "look" :
+        elif msgs[0] == "dynamic" and msgs[1] == "look":
             x = int(msgs[2])
             y = int(msgs[3])
             face.lookWithMotionDynamic(cv2, x, y, 0.5, publish_image, wobbler)
 
-        elif msgs[0] == "dynamic" and msgs[1] == "human" and msgs[2] == "follow" and msgs[3] == "on" :
+        elif msgs[0] == "dynamic" and msgs[1] == "human" and msgs[2] == "follow" and msgs[3] == "on":
             humanFollowControl = True
             armFollowControl = False
             dynamicControl = True
             print("Human following mod on")
 
-        elif msgs[0] == "left" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on" :
+        elif msgs[0] == "left" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on":
             humanFollowControl = False
             armFollowControl = True
             isItLeftArm = True
@@ -284,7 +363,7 @@ def callback_Command(data):
             wobbler.wobble(0.0)
             print("Left arm following mod on")
 
-        elif msgs[0] == "right" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on" :
+        elif msgs[0] == "right" and msgs[1] == "arm" and msgs[2] == "follow" and msgs[3] == "on":
             humanFollowControl = False
             armFollowControl = True
             isItLeftArm = False
@@ -293,16 +372,16 @@ def callback_Command(data):
             wobbler.wobble(0.0)
             print("Right arm following mod on")
         defaultMsg = msg
-    
-    elif len(msgs) == 5 and msg != defaultMsg :
-        if msgs[0] == "dynamic" and msgs[1] == "right" and msgs[2] == "arm" and msgs[3] == "follow" and msgs[4] == "on" :
+
+    elif len(msgs) == 5 and msg != defaultMsg:
+        if msgs[0] == "dynamic" and msgs[1] == "right" and msgs[2] == "arm" and msgs[3] == "follow" and msgs[4] == "on":
             humanFollowControl = False
             armFollowControl = True
             isItLeftArm = False
             dynamicControl = True
             print("Dynamic right arm following mod on")
 
-        if msgs[0] == "dynamic" and msgs[1] == "left" and msgs[2] == "arm" and msgs[3] == "follow" and msgs[4] == "on" :
+        if msgs[0] == "dynamic" and msgs[1] == "left" and msgs[2] == "arm" and msgs[3] == "follow" and msgs[4] == "on":
             humanFollowControl = False
             armFollowControl = True
             isItLeftArm = True
@@ -310,28 +389,26 @@ def callback_Command(data):
             print("Dynamic left arm following mod on")
         defaultMsg = msg
 
-
 # this function for the human following
 def callback_human_follow(msg):
-
-    global xOld 
-    global pKOld 
+    global xOld
+    global pKOld
     global coor
     global elementOfHandleList
     global oldCoor
-    sonarIDs = msg.channels[0].values 
+    sonarIDs = msg.channels[0].values
     sonarDistances = msg.channels[1].values
-    #r is a standart deviation of the sonar sensors' values.
-    r = 0.50635561 
+    #r is a standard deviation of the sonar sensors' values.
+    r = 0.50635561
 
-    #arrayOfSonarID is sensor shoul be proccessed
-    arrayOfSonarID = humanFollowNoiseElimination(sonarIDs, sonarDistances) 
+    #arrayOfSonarID is sensor should be processed
+    arrayOfSonarID = humanFollowNoiseElimination(sonarIDs, sonarDistances)
     numberOfData = len(arrayOfSonarID)
-    
+
     if numberOfData > 0:
         meanOfSonarID = mean(arrayOfSonarID)
         # Kalman Filter Part
-        K = pKOld / (pKOld + r) 
+        K = pKOld / (pKOld + r)
         x = xOld + K*(meanOfSonarID-xOld)
         pK = (1-K) * pKOld
         prob = 0.03 # Prob value determines that how much measured value effect the kalman filter value.
@@ -345,13 +422,12 @@ def callback_human_follow(msg):
         # Output of the value
         xOld = x
         pKOld = pK
-        
+
         value = int(mean(handleList) * 26.67)
         oldCoor = coor
         coor = value #Coor is the coordinate of the object according to robot's eye
-        #print("Coor: {}, SumOfSensors: {}".format(coor, sum(arrayOfSonarID))
 
-def humanFollowNoiseElimination(sonarIDs, sonarDistances) :
+def humanFollowNoiseElimination(sonarIDs, sonarDistances):
     arrayOfSonarID = []
     numberOfData = len(sonarIDs)
     counter = 0
@@ -364,8 +440,8 @@ def humanFollowNoiseElimination(sonarIDs, sonarDistances) :
         if (sonarIDs[index] <= 3 and sonarIDs[index] >= 0) or (sonarIDs[index] >= 9 and sonarIDs[index] <= 11):
             if sonarDistances[index] < sonarDistances[minimumIndex]:
                 minimumIndex = index
-    
-    # Determining the values will be proccesed
+
+    # Determining the values will be processed
     for index in range(numberOfData):
         if sonarIDs[index] <= 3 and sonarIDs[index] >= 0:
             if sonarDistances[index] < maximumDistance and isInAvailablePercentage(sonarDistances[minimumIndex], sonarDistances[index], percentageRate):
@@ -373,7 +449,7 @@ def humanFollowNoiseElimination(sonarIDs, sonarDistances) :
                 arrayOfSonarID.append(levelOfSonar)
                 counter += 1
                 continue
-        
+
         elif sonarIDs[index] >= 9 and sonarIDs[index] <= 11:
             if sonarDistances[index] < maximumDistance and isInAvailablePercentage(sonarDistances[minimumIndex], sonarDistances[index], percentageRate):
                 levelOfSonar = (12-float(sonarIDs[index])) # resizing the value between [-3, 3]
@@ -382,12 +458,12 @@ def humanFollowNoiseElimination(sonarIDs, sonarDistances) :
                 continue
 
     # Eliminate the outliers
-    if counter > 0 :
+    if counter > 0:
         arrayOfSonarID = eliminateOutliers(arrayOfSonarID, 1.3)
-    
+
     return arrayOfSonarID
 
-def callback_left_arm_follow(msg) :
+def callback_left_arm_follow(msg):
     global xAxisLeft
     global yAxisLeft
     # taken the coordinates
@@ -396,12 +472,12 @@ def callback_left_arm_follow(msg) :
     z = msg.pose.position.z
 
     # angle calculation of y axis
-    yAxisAngle = math.atan(abs(x)/(z-c)) 
+    yAxisAngle = math.atan(abs(x)/(z-c))
     if yAxisAngle < 0:
         yAxisAngle = (-3.14/2)-yAxisAngle
     else:
         yAxisAngle = (3.14/2)-yAxisAngle
-    if isItLeftArm == True :
+    if isItLeftArm == True:
         yAxisLeft = (-76.394) * ( yAxisAngle )
         xAxisLeft = (57.294) * ( math.atan(y/abs(x)) )
 
@@ -414,17 +490,17 @@ def callback_right_arm_follow(msg):
     z = msg.pose.position.z
 
     # angle calculation of y axis
-    yAxisAngle = math.atan(abs(x)/(z-c)) 
+    yAxisAngle = math.atan(abs(x)/(z-c))
     if yAxisAngle < 0:
         yAxisAngle = (-3.14/2)-yAxisAngle
     else:
         yAxisAngle = (3.14/2)-yAxisAngle
 
-    if isItLeftArm == False :
+    if isItLeftArm == False:
         yAxisRight = (-76.394) * ( yAxisAngle )
         xAxisRight = (57.294) * ( math.atan(y/abs(x)) )
 
-    """ Main Functions """
+""" Main Functions """
 
 def main():
     global wobbler
@@ -439,17 +515,38 @@ def main():
     rospy.spin()
     return 0
 
-def main_loop() :
+def main_optimized():
+    global wobbler
+    print("entered optimized main part...")
+
+    # Initialize publisher
+    init_publisher()
+
+    wobbler = head_wobbler.Wobbler()
+    face.testAllImages(cv2, publish_image_optimized)
+    face.sleep(cv2, publish_image_optimized)
+
+    # Start image publishing thread
+    image_thread = threading.Thread(target=image_publisher_thread, name='image_publisher')
+    image_thread.daemon = True
+    image_thread.start()
+
+    # Setup subscribers
+    rospy.Subscriber('/robot/sonar/head_sonar/state', PointCloud, callback_human_follow)
+    rospy.Subscriber('/robot/limb/left/endpoint_state', EndpointState, callback_left_arm_follow)
+    rospy.Subscriber('/robot/limb/right/endpoint_state', EndpointState, callback_right_arm_follow)
+    rospy.Subscriber('display_chatter', String, callback_Command)
+
+    return 0
+
+def main_loop():
     global isSystemRun
-    rospy.sleep(2)
-    rate = rospy.Rate(10) #10 times in a second (loop frequency)
-    #These time keepers for the eyelid
+    # Original main_loop (kept for reference)
     referenceTime = timeit.default_timer()
     currentTime = timeit.default_timer()
     print("entered main loop part...")
+    while not rospy.is_shutdown():
 
-    while not rospy.is_shutdown() :
-        
         # Blink for each 5 seconds.
         currentTime = timeit.default_timer()
         if currentTime - referenceTime > 5:
@@ -457,17 +554,17 @@ def main_loop() :
             referenceTime = timeit.default_timer()
             print("wink motion is applicated")
 
-        if humanFollowControl == True :
+        if humanFollowControl == True:
             if oldCoor != face.eye.getPositionX():
-                if dynamicControl == False :
+                if dynamicControl == False:
                     face.eye.lookExactCoordinate(coor, 0)
                     face.show(publish_image)
-                else : 
+                else:
                     face.lookExactCoordinateDynamic(cv2, coor, 0, publish_image, wobbler)
                     face.show(publish_image)
 
-        elif armFollowControl == True :
-            if dynamicControl == False :
+        elif armFollowControl == True:
+            if dynamicControl == False:
                 if isItLeftArm:
                     face.eye.lookExactCoordinate(int(xAxisLeft), int(yAxisLeft))
                 else:
@@ -479,31 +576,97 @@ def main_loop() :
                     face.lookExactCoordinateDynamic(int(xAxisRight), int(yAxisRight), publish_image, wobbler)
             face.show(publish_image)
 
-        if isSystemRun == False :
+        if isSystemRun == False:
             sys.exit()
-    
     face.show(publish_image)
     isSystemRun = False
 
-if __name__ == '__main__' :
+def main_loop_optimized():
+    """Optimized main loop"""
+    global isSystemRun
 
+    # Set rate for fast updates
+    rate = rospy.Rate(50)  # Check status at 50Hz
+
+    # Time-related variables
+    referenceTime = timeit.default_timer()
+    last_human_follow_update = 0
+    last_arm_follow_update = 0
+
+    print("entered optimized main loop part...")
+
+    while not rospy.is_shutdown() and isSystemRun:
+        current_time = timeit.default_timer()
+
+        # Wink every 5 seconds (maintain existing logic)
+        if current_time - referenceTime > 5:
+            face.wink(cv2, publish_image_optimized)
+            referenceTime = current_time
+            print("wink motion is applicated")
+
+        # Human follow processing (more frequent updates)
+        if humanFollowControl and current_time - last_human_follow_update > 0.033:  # ~30Hz
+            if oldCoor != face.eye.getPositionX():
+                if dynamicControl == False:
+                    face.eye.lookExactCoordinate(coor, 0)
+                    face.show(publish_image_optimized)
+                else:
+                    face.lookExactCoordinateDynamic(cv2, coor, 0, publish_image_optimized, wobbler)
+                    face.show(publish_image_optimized)
+            last_human_follow_update = current_time
+
+        # Arm follow processing (more frequent updates)
+        elif armFollowControl and current_time - last_arm_follow_update > 0.033:  # ~30Hz
+            if dynamicControl == False:
+                if isItLeftArm:
+                    face.eye.lookExactCoordinate(int(xAxisLeft), int(yAxisLeft))
+                else:
+                    face.eye.lookExactCoordinate(int(xAxisRight), int(yAxisRight))
+            else:
+                if isItLeftArm:
+                    face.lookExactCoordinateDynamic(int(xAxisLeft), int(yAxisLeft), publish_image_optimized, wobbler)
+                else:
+                    face.lookExactCoordinateDynamic(int(xAxisRight), int(yAxisRight), publish_image_optimized, wobbler)
+
+            face.show(publish_image_optimized)
+            last_arm_follow_update = current_time
+
+        # Publish default image when no control is active
+        elif not humanFollowControl and not armFollowControl:
+            face.show(publish_image_optimized)
+
+        if isSystemRun == False:
+            sys.exit()
+
+        rate.sleep()
+
+if __name__ == '__main__':
     rospy.init_node('rsdk_xdisplay_image', anonymous=True)
-    
-    threadMain = threading.Thread(name='listener', target=main)
-    threadMainLoop = threading.Thread(name='main_loop', target=main_loop)
+
+    # Use optimized version
+    threadMain = threading.Thread(name='listener', target=main_optimized)
+    threadMainLoop = threading.Thread(name='main_loop', target=main_loop_optimized)
 
     try:
         threadMain.daemon = True
         threadMainLoop.daemon = True
-        threadMainLoop.start()
         threadMain.start()
-    except (KeyboardInterrupt, SystemExit):
-        cleanup_stop_thread()
-        sys.exit()
+        threadMainLoop.start()
 
-    except :
+        # ROS spin in main thread
+        rospy.spin()
+
+    except (KeyboardInterrupt, SystemExit):
+        # cleanup_stop_thread()  # Commented out as function is not defined
+        sys.exit()
+    except:
         print("Unable to start thread")
-    while 1 :
-        if isSystemRun == False :
+
+    # Wait for termination (Python 2/3 compatible)
+    while threadMain.is_alive() or threadMainLoop.is_alive():
+        if not isSystemRun:
             break
-        pass
+        try:
+            rospy.sleep(0.1)
+        except KeyboardInterrupt:
+            break

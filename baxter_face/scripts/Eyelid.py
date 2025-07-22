@@ -6,12 +6,14 @@ This file has class which defines the eyelid of the baxter
 '''
 
 from PIL import Image
+import rospkg
 
 class Eyelid:
 
     def __init__(self):
+        default_path = rospkg.RosPack().get_path('baxter_face')
 
-        self.eyelid = Image.open("data/baxter_eyelid.png") # eyelid image
+        self.eyelid = Image.open(default_path+"/scripts/data/baxter_eyelid.png") # eyelid image
         self.position = 0 # y position, we don't need x position because of vertical movment.
 
     def moveCalculation(self, position, destinationPosition, totalTime, instantTime):

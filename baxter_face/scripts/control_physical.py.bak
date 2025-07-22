@@ -55,7 +55,7 @@ def main():
     navLeftTorso = baxter_interface.Navigator('torso_left')
     navRightTorso = baxter_interface.Navigator('torso_right')
 
-    print("Controller is enable...")
+    print "Controller is enable..."
 
     while not rospy.is_shutdown():
         # Arm navigators okay button to enable and disable
@@ -63,54 +63,54 @@ def main():
             if not isEnable:
                 pub.publish("enable")
                 isEnable = True
-                print("enable")
+                print "enable"
             else:
                 pub.publish("disable")
                 isEnable = False
-                print("disable")
+                print "disable"
         #Left arm up button to wake up
         elif navLeftArm._state.buttons[1]:
             pub.publish("wake_up")
             isWakeUp = True
-            print("wake_up")
+            print "wake_up"
         #Left arm down button to sleep
         elif navLeftArm._state.buttons[2]:
             pub.publish("sleep")
             isWakeUp = False
-            print("sleep")
+            print "sleep"
         #Right arm buttons to follow arms
         elif navRightArm._state.buttons[1]:
             if isFollow:
                 pub.publish("arm_follow_off")
                 isFollow = False
-                print("arm_follow_off")
+                print "arm_follow_off"
             else:
                 pub.publish("dynamic_left_arm_follow_on")
                 isFollow = True
-                print("dynamic_left_arm_follow_on")
+                print "dynamic_left_arm_follow_on"
 
         elif navRightArm._state.buttons[2]:
             if isFollow:
                 pub.publish("arm_follow_off")
                 isFollow = False
-                print("arm_follow_off")
+                print "arm_follow_off"
             else:
                 pub.publish("dynamic_right_arm_follow_on")
                 isFollow = True
-                print("dynamic_right_arm_follow_on")
+                print "dynamic_right_arm_follow_on"
         else:
             # Wheel Control
             currentEmotion = getEmotion(navLeftArm._state.wheel)
             if not emotion == currentEmotion and isWakeUp:
                 pub.publish(commands[currentEmotion])
                 emotion = currentEmotion
-                print(commands[currentEmotion])
-                print(currentEmotion)
+                print commands[currentEmotion]
+                print currentEmotion
             continue
         
-        print("Wait for 0.3 secs ")
+        print "Wait for 0.3 secs "
         time.sleep(0.3)
-        print("Okay:")
+        print "Okay:"
 
 if __name__ == '__main__':
     try:
