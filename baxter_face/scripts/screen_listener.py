@@ -97,7 +97,7 @@ pub = None  # Publisher declared globally
 def init_publisher():
     """Initialize publisher only once"""
     global pub
-    pub = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=10)
+    pub = rospy.Publisher('/robot/xdisplay', Image, latch=True, queue_size=1)
 
 def isInAvailablePercentage(minimum, current, percentage):
     rangeOfPercentage = percentage / 100.0
@@ -504,19 +504,6 @@ def callback_right_arm_follow(msg):
 
 def main():
     global wobbler
-    print("entered main part...")
-    wobbler = head_wobbler.Wobbler()
-    face.testAllImages(cv2, publish_image)
-    face.sleep(cv2, publish_image)
-    rospy.Subscriber('/robot/sonar/head_sonar/state', PointCloud, callback_human_follow)
-    rospy.Subscriber('/robot/limb/left/endpoint_state', EndpointState, callback_left_arm_follow)
-    rospy.Subscriber('/robot/limb/right/endpoint_state', EndpointState, callback_right_arm_follow)
-    rospy.Subscriber('display_chatter', String, callback_Command)
-    rospy.spin()
-    return 0
-
-def main_optimized():
-    global wobbler
     print("entered optimized main part...")
 
     # Initialize publisher
@@ -540,49 +527,6 @@ def main_optimized():
     return 0
 
 def main_loop():
-    global isSystemRun
-    # Original main_loop (kept for reference)
-    referenceTime = timeit.default_timer()
-    currentTime = timeit.default_timer()
-    print("entered main loop part...")
-    while not rospy.is_shutdown():
-
-        # Blink for each 5 seconds.
-        currentTime = timeit.default_timer()
-        if currentTime - referenceTime > 5:
-            face.wink(cv2, publish_image)
-            referenceTime = timeit.default_timer()
-            print("wink motion is applicated")
-
-        if humanFollowControl == True:
-            if oldCoor != face.eye.getPositionX():
-                if dynamicControl == False:
-                    face.eye.lookExactCoordinate(coor, 0)
-                    face.show(publish_image)
-                else:
-                    face.lookExactCoordinateDynamic(cv2, coor, 0, publish_image, wobbler)
-                    face.show(publish_image)
-
-        elif armFollowControl == True:
-            if dynamicControl == False:
-                if isItLeftArm:
-                    face.eye.lookExactCoordinate(int(xAxisLeft), int(yAxisLeft))
-                else:
-                    face.eye.lookExactCoordinate(int(xAxisRight), int(yAxisRight))
-            else:
-                if isItLeftArm:
-                    face.lookExactCoordinateDynamic(int(xAxisLeft), int(yAxisLeft), publish_image, wobbler)
-                else:
-                    face.lookExactCoordinateDynamic(int(xAxisRight), int(yAxisRight), publish_image, wobbler)
-            face.show(publish_image)
-
-        if isSystemRun == False:
-            sys.exit()
-    face.show(publish_image)
-    isSystemRun = False
-
-def main_loop_optimized():
-    """Optimized main loop"""
     global isSystemRun
 
     # Set rate for fast updates
@@ -644,8 +588,8 @@ if __name__ == '__main__':
     rospy.init_node('rsdk_xdisplay_image', anonymous=True)
 
     # Use optimized version
-    threadMain = threading.Thread(name='listener', target=main_optimized)
-    threadMainLoop = threading.Thread(name='main_loop', target=main_loop_optimized)
+    threadMain = threading.Thread(name='listener', target=main)
+    threadMainLoop = threading.Thread(name='main_loop', target=main_loop)
 
     try:
         threadMain.daemon = True
