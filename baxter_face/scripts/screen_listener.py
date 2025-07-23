@@ -148,9 +148,9 @@ def image_publisher_thread():
             h, w = img.shape[:2]
             scale = min(1.0 * max_height / h, 1.0 * max_width / w)
             img = cv2.resize(img, None, None, fx=scale, fy=scale)
-
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
             # Create message and publish
-            msg = bridge.cv2_to_imgmsg(img, encoding="bgra8")
+            msg = bridge.cv2_to_imgmsg(img, encoding="bgr8")
 
             msg.header.stamp = rospy.Time.now()
 
@@ -162,7 +162,7 @@ def image_publisher_thread():
         except Queue.Empty:
             # If queue is empty, republish last image
             if last_published_image is not None:
-                msg = bridge.cv2_to_imgmsg(last_published_image, encoding="bgra8")
+                msg = bridge.cv2_to_imgmsg(last_published_image, encoding="bgr8")
                 pub.publish(msg)
         except Exception as e:
             # Handle any other exceptions
