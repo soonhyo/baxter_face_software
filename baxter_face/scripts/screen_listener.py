@@ -142,7 +142,7 @@ def image_publisher_thread():
     while not rospy.is_shutdown():
         try:
             # Get image from queue (with timeout)
-            img = image_queue.get(timeout=0.02)
+            img = image_queue.get(timeout=0.033)
 
             # Process image
             h, w = img.shape[:2]
@@ -151,6 +151,9 @@ def image_publisher_thread():
 
             # Create message and publish
             msg = bridge.cv2_to_imgmsg(img, encoding="bgra8")
+
+            msg.header.stamp = rospy.Time.now()
+
             pub.publish(msg)
 
             last_published_image = img
@@ -517,7 +520,7 @@ def main_loop():
     global isSystemRun
 
     # Set rate for fast updates
-    rate = rospy.Rate(50)  # Check status at 50Hz
+    rate = rospy.Rate(30)  # Check status at 30Hz
 
     # Time-related variables
     referenceTime = timeit.default_timer()
